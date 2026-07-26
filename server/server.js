@@ -11,7 +11,7 @@ const app = express()
 
 // Allows the deployed frontend (and local dev) to call this API.
 // Replace with your actual Vercel URL once deployed.
-const allowedOrigins = ['http://localhost:5173', 'https://visionassist-ai.vercel.app']
+const allowedOrigins = ['http://localhost:5173', 'https://visioin-assist-ai.vercel.app']
 app.use(cors({ origin: allowedOrigins }))
 app.use(express.json())
 
