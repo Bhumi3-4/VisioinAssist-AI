@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Search, FileText, RotateCcw, Square, HelpCircle, TriangleAlert, User, LogOut, History, Monitor } from 'lucide-react'
+import { Search, FileText, RotateCcw, Square, HelpCircle, TriangleAlert, User, LogOut, History, Settings } from 'lucide-react'
 import Header from './components/Header'
 import CameraView from './components/CameraView'
 import VoiceOrb from './components/VoiceOrb'
@@ -13,7 +13,6 @@ import { useCamera } from './hooks/useCamera'
 import { useObjectDetection } from './hooks/useObjectDetection'
 import { useTextRecognition } from './hooks/useTextRecognition'
 import { useObstacleWatch } from './hooks/useObstacleWatch'
-import { useScreenCapture } from './hooks/useScreenCapture'
 import { useVoiceCommands } from './hooks/useVoiceCommands'
 import { describeObjects } from './utils/describeObjects'
 import { drawDetections } from './utils/drawDetections'
@@ -25,7 +24,7 @@ import { saveHistoryEntry, updatePreferences } from './utils/api'
 
 const TEXT_SCALES = [100, 125, 150, 200]
 const HELP_TEXT =
-  'You can say: what\'s around me, read this, read the screen, repeat, stop, zoom in, zoom out, bigger text, smaller text, watch for obstacles, stop obstacle watch, or help.'
+  'You can say: what\'s around me, read this, repeat, stop, zoom in, zoom out, bigger text, smaller text, watch for obstacles, stop obstacle watch, or help.'
 
 export default function App() {
   const [status, setStatus] = useState('Point the camera, then tap a button below.')
@@ -35,19 +34,16 @@ export default function App() {
   const [zoom, setZoom] = useState(1)
   const [obstacleOn, setObstacleOn] = useState(false)
 
-  // --- Account state ---
-  // token lives in localStorage so a page refresh keeps the user logged
-  // in. The app is fully usable with token === null (guest mode).
   const [token, setToken] = useState(() => localStorage.getItem('vaToken'))
   const [user, setUser] = useState(null)
-  const [showAuthPanel, setShowAuthPanel] = useState(false)
   const [showHistoryPanel, setShowHistoryPanel] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showAccountPanel, setShowAccountPanel] = useState(false)
 
   const { videoRef, status: cameraStatus, errorMessage } = useCamera()
   const canvasRef = useRef(null)
   const { modelStatus, detect } = useObjectDetection()
   const { ocrStatus, recognize } = useTextRecognition()
-  const { isSupported: screenCaptureSupported, captureScreenFrame } = useScreenCapture()
 
   const obstacleEnabled = obstacleOn && modelStatus === 'ready' && cameraStatus === 'ready'
   const { lastAlert } = useObstacleWatch({ videoRef, canvasRef, detect, enabled: obstacleEnabled })
@@ -67,13 +63,11 @@ export default function App() {
     document.body.classList.toggle('high-contrast', highContrast)
   }, [highContrast])
 
-  // Sync accessibility preferences to the backend whenever they change,
-  // but only if logged in -- guests just keep their settings locally.
   useEffect(() => {
     if (!token) return
     const timeout = setTimeout(() => {
       updatePreferences(token, { fontScale, highContrast }).catch(() => {})
-    }, 600) // small debounce so dragging the zoom slider doesn't spam requests
+    }, 600)
     return () => clearTimeout(timeout)
   }, [token, fontScale, highContrast])
 
@@ -89,7 +83,7 @@ export default function App() {
     localStorage.setItem('vaToken', newToken)
     setToken(newToken)
     setUser(newUser)
-    setShowAuthPanel(false)
+    setShowAccountPanel(false)
     if (newUser?.preferences) {
       setFontScale(newUser.preferences.fontScale ?? 100)
       setHighContrast(Boolean(newUser.preferences.highContrast))
@@ -104,8 +98,6 @@ export default function App() {
     setShowHistoryPanel(false)
     speak('Logged out')
   }
-
-  // --- Core actions, each with a button AND a matching voice command ---
 
   const handleDetect = useCallback(async () => {
     if (!videoRef.current || modelStatus !== 'ready') return
@@ -143,44 +135,6 @@ export default function App() {
     speak(text)
     if (token) saveHistoryEntry(token, { type: 'text-recognition', resultText: text }).catch(() => {})
   }, [ocrStatus, recognize, videoRef, token])
-
-  const handleReadScreen = useCallback(async () => {
-    if (!screenCaptureSupported) {
-      const message = "Reading the screen isn't supported in this browser. Try Chrome or Edge on a computer."
-      setCaption(message)
-      speak(message)
-      return
-    }
-    if (ocrStatus !== 'ready') {
-      const message = 'The text reader is still loading, one moment.'
-      setCaption(message)
-      speak(message)
-      return
-    }
-
-    try {
-      setStatus('Choose a screen, window, or tab to read…')
-      const frame = await captureScreenFrame()
-      setStatus('Reading the screen…')
-      const { text, confidence } = await recognize(frame)
-
-      if (!isLikelyValidText(text, confidence)) {
-        const message = "I couldn't find any readable text on that screen."
-        setCaption(message)
-        setStatus('Done.')
-        speak(message)
-        return
-      }
-
-      setCaption(text)
-      setStatus('Done.')
-      speak(text)
-      if (token) saveHistoryEntry(token, { type: 'text-recognition', resultText: text }).catch(() => {})
-    } catch (err) {
-      // User cancelled the picker, or denied permission -- not an error worth alarming over
-      setStatus('Screen reading cancelled.')
-    }
-  }, [screenCaptureSupported, ocrStatus, captureScreenFrame, recognize, token])
 
   const handleRepeat = useCallback(() => {
     if (!caption) {
@@ -234,7 +188,6 @@ export default function App() {
       const actions = {
         detect: handleDetect,
         read: handleRead,
-        readScreen: handleReadScreen,
         repeat: handleRepeat,
         stop: handleStop,
         zoomIn: handleZoomIn,
@@ -250,7 +203,6 @@ export default function App() {
     [
       handleDetect,
       handleRead,
-      handleReadScreen,
       handleRepeat,
       handleStop,
       handleZoomIn,
@@ -294,88 +246,89 @@ export default function App() {
   const detectDisabled = modelStatus !== 'ready' || cameraStatus !== 'ready'
 
   return (
-    <div
-      style={{
-        maxWidth: 640,
-        margin: '0 auto',
-        padding: 'var(--space-lg) var(--space-md)',
-        textAlign: 'center',
-      }}
-    >
+    <div style={{ maxWidth: 640, margin: '0 auto', padding: 'var(--space-lg) var(--space-md)', textAlign: 'center' }}>
       <Header />
 
-      {/* --- Account controls --- */}
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)', flexWrap: 'wrap' }}>
-        {token ? (
-          <>
+      {/* Compact top controls: two icon buttons instead of a full-width row */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', marginBottom: 'var(--space-md)' }}>
+        <ActionButton
+          icon={Settings}
+          iconOnly
+          aria-label="Accessibility settings"
+          aria-pressed={showSettings}
+          onClick={() => setShowSettings((v) => !v)}
+        >
+          Accessibility settings
+        </ActionButton>
+        <ActionButton
+          icon={User}
+          iconOnly
+          aria-label={token ? `Account menu, logged in as ${user?.name || 'you'}` : 'Log in or register'}
+          aria-pressed={showAccountPanel}
+          onClick={() => setShowAccountPanel((v) => !v)}
+        >
+          {token ? 'Account menu' : 'Log in or register'}
+        </ActionButton>
+      </div>
+
+      {showAccountPanel &&
+        (token ? (
+          <div className="card" style={{ padding: 'var(--space-md)', marginBottom: 'var(--space-md)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'var(--space-sm)' }}>
             <span style={{ color: 'var(--text-secondary)' }}>{user ? `Logged in as ${user.name}` : 'Logged in'}</span>
             <ActionButton icon={History} onClick={() => setShowHistoryPanel((v) => !v)}>
               {showHistoryPanel ? 'Hide history' : 'View history'}
             </ActionButton>
-            <ActionButton icon={LogOut} onClick={handleLogout}>
-              Log out
-            </ActionButton>
-          </>
+            <ActionButton icon={LogOut} onClick={handleLogout}>Log out</ActionButton>
+          </div>
         ) : (
-          <ActionButton icon={User} onClick={() => setShowAuthPanel((v) => !v)}>
-            {showAuthPanel ? 'Close' : 'Log in / Register'}
-          </ActionButton>
-        )}
-      </div>
-
-      {showAuthPanel && !token && <AuthPanel onAuthSuccess={handleAuthSuccess} onSkip={() => setShowAuthPanel(false)} />}
+          <AuthPanel onAuthSuccess={handleAuthSuccess} onSkip={() => setShowAccountPanel(false)} />
+        ))}
       {showHistoryPanel && token && <HistoryPanel token={token} />}
 
-      <AccessibilityBar
-        fontScale={fontScale}
-        onFontScaleChange={setFontScale}
-        highContrast={highContrast}
-        onToggleContrast={setHighContrast}
-        zoom={zoom}
-        onZoomChange={setZoom}
-      />
+      {showSettings && (
+        <AccessibilityBar
+          fontScale={fontScale}
+          onFontScaleChange={setFontScale}
+          highContrast={highContrast}
+          onToggleContrast={setHighContrast}
+          zoom={zoom}
+          onZoomChange={setZoom}
+        />
+      )}
 
-      <CameraView
-        videoRef={videoRef}
-        canvasRef={canvasRef}
-        status={cameraStatus}
-        errorMessage={errorMessage}
-        zoom={zoom}
-      />
+      <CameraView videoRef={videoRef} canvasRef={canvasRef} status={cameraStatus} errorMessage={errorMessage} zoom={zoom} />
 
-      <div
-        className="card"
-        style={{
-          margin: 'var(--space-md) 0',
-          padding: 'var(--space-sm)',
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-          gap: 'var(--space-sm)',
-        }}
+      {/* One prominent primary action -- the thing people reach for most */}
+      <ActionButton
+        icon={Search}
+        variant="accent"
+        onClick={handleDetect}
+        disabled={detectDisabled}
+        style={{ width: '100%', height: '3.5rem', margin: 'var(--space-md) 0 var(--space-sm)', justifyContent: 'center' }}
       >
-        <ActionButton icon={Search} variant="accent" onClick={handleDetect} disabled={detectDisabled}>
-          What's around me
-        </ActionButton>
-        <ActionButton icon={FileText} onClick={handleRead} disabled={ocrStatus !== 'ready'}>
+        What's around me
+      </ActionButton>
+
+      {/* Everything else: compact icon-only row, same functionality, far less visual weight */}
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
+        <ActionButton icon={FileText} iconOnly aria-label="Read this" onClick={handleRead} disabled={ocrStatus !== 'ready'}>
           Read this
         </ActionButton>
-        <ActionButton icon={Monitor} onClick={handleReadScreen} disabled={ocrStatus !== 'ready' || !screenCaptureSupported}>
-          Read screen text
-        </ActionButton>
-        <ActionButton icon={RotateCcw} onClick={handleRepeat}>
+        <ActionButton icon={RotateCcw} iconOnly aria-label="Repeat" onClick={handleRepeat}>
           Repeat
         </ActionButton>
-        <ActionButton icon={Square} variant="stop" onClick={handleStop}>
+        <ActionButton icon={Square} iconOnly aria-label="Stop" onClick={handleStop}>
           Stop
         </ActionButton>
-        <ActionButton icon={HelpCircle} onClick={handleHelp}>
+        <ActionButton icon={HelpCircle} iconOnly aria-label="Help" onClick={handleHelp}>
           Help
         </ActionButton>
         <ActionButton
           icon={TriangleAlert}
+          iconOnly
           variant="danger"
           active={obstacleOn}
+          aria-label={`Obstacle watch, ${obstacleOn ? 'on' : 'off'}`}
           aria-pressed={obstacleOn}
           onClick={obstacleOn ? handleObstacleOff : handleObstacleOn}
           disabled={detectDisabled}
