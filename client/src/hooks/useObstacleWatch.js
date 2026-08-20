@@ -13,9 +13,9 @@ const ALERT_COOLDOWN_MS = 4000
 // what fixes the constant false triggers: no fixed magic number, the
 // threshold adapts to the actual environment.
 const BASELINE_HISTORY_SIZE = 6
-const SPIKE_MULTIPLIER = 2.2 // current reading must be this many times the recent baseline
-const MIN_ABSOLUTE_FLOOR = 14 // and still be at least this much change, even if baseline is near-zero
-const SUSTAINED_TICKS_REQUIRED = 3 // must stay elevated this many ticks in a row, not one spike
+const SPIKE_MULTIPLIER = 1.8 // current reading must be this many times the recent (quiet-only) baseline
+const MIN_ABSOLUTE_FLOOR = 12 // and still be at least this much change, even if baseline is near-zero
+const SUSTAINED_TICKS_REQUIRED = 2 // must stay elevated this many ticks in a row, not one spike
 
 export function useObstacleWatch({ videoRef, canvasRef, detect, enabled }) {
   const [lastAlert, setLastAlert] = useState(null)
@@ -46,13 +46,20 @@ export function useObstacleWatch({ videoRef, canvasRef, detect, enabled }) {
       const isSpike = haveEnoughHistory && motion > baseline * SPIKE_MULTIPLIER && motion > MIN_ABSOLUTE_FLOOR
       sustainedHighRef.current = isSpike ? sustainedHighRef.current + 1 : 0
       genericRisk = sustainedHighRef.current >= SUSTAINED_TICKS_REQUIRED
+
+      // Only feed QUIET readings into the baseline -- if we included
+      // readings during an actual approach, the baseline would rise
+      // right along with it and the spike would never register as
+      // "above normal". This keeps the baseline representing what
+      // normal/no-obstacle actually looks like for this camera.
+      if (!isSpike) {
+        motionHistoryRef.current.push(motion)
+        if (motionHistoryRef.current.length > BASELINE_HISTORY_SIZE) motionHistoryRef.current.shift()
+      }
     } else {
       sustainedHighRef.current = 0 // named-object path handled it, reset fallback counter
     }
 
-    // Keep a rolling window of recent motion readings to define "normal" for this camera
-    motionHistoryRef.current.push(motion)
-    if (motionHistoryRef.current.length > BASELINE_HISTORY_SIZE) motionHistoryRef.current.shift()
     prevSampleRef.current = currentSample
 
     const now = Date.now()
