@@ -57,3 +57,18 @@ export function frameMotionEnergy(prev, current) {
   for (let i = 0; i < current.length; i++) sum += Math.abs(current[i] - prev[i])
   return sum / current.length
 }
+
+/**
+ * rollingBaseline
+ * A fixed noise threshold doesn't work here -- normal webcam sensor
+ * noise, auto-exposure adjustment, and hand tremor vary a lot between
+ * devices and lighting, and were triggering false alerts constantly.
+ * This computes a simple moving average of recent motion readings as
+ * an adaptive "ambient noise floor" for THIS camera right now, so a
+ * tick only counts as meaningful if it's clearly above what's normal,
+ * not above some number guessed without a real camera to test against.
+ */
+export function rollingBaseline(history) {
+  if (history.length === 0) return 0
+  return history.reduce((sum, v) => sum + v, 0) / history.length
+}
