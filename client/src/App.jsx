@@ -337,7 +337,7 @@ export default function App() {
 
       <CaptionDisplay text={caption} />
 
-      <div style={{ margin: 'var(--space-lg) 0' }}>
+      <div style={{ margin: 'var(--space-lg) 0', display: 'flex', justifyContent: 'center' }}>
         <VoiceOrb listening={isListening} supported={voiceSupported} onClick={handleOrbClick} />
       </div>
 
