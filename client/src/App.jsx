@@ -311,24 +311,22 @@ export default function App() {
 
       {/* Everything else: compact icon-only row, same functionality, far less visual weight */}
       <div style={{ display: 'flex', justifyContent: 'center', gap: 'var(--space-sm)', flexWrap: 'wrap' }}>
-        <ActionButton icon={FileText} iconOnly aria-label="Read this" onClick={handleRead} disabled={ocrStatus !== 'ready'}>
+        <ActionButton icon={FileText} onClick={handleRead} disabled={ocrStatus !== 'ready'}>
           Read this
         </ActionButton>
-        <ActionButton icon={RotateCcw} iconOnly aria-label="Repeat" onClick={handleRepeat}>
+        <ActionButton icon={RotateCcw} onClick={handleRepeat}>
           Repeat
         </ActionButton>
-        <ActionButton icon={Square} iconOnly aria-label="Stop" onClick={handleStop}>
+        <ActionButton icon={Square} variant="danger" active onClick={handleStop}>
           Stop
         </ActionButton>
-        <ActionButton icon={HelpCircle} iconOnly aria-label="Help" onClick={handleHelp}>
+        <ActionButton icon={HelpCircle} onClick={handleHelp}>
           Help
         </ActionButton>
         <ActionButton
           icon={TriangleAlert}
-          iconOnly
           variant="danger"
           active={obstacleOn}
-          aria-label={`Obstacle watch, ${obstacleOn ? 'on' : 'off'}`}
           aria-pressed={obstacleOn}
           onClick={obstacleOn ? handleObstacleOff : handleObstacleOn}
           disabled={detectDisabled}
